@@ -46,7 +46,54 @@ app.get('/setup', (req, res) => {
  * API routes
  */
 const apiRoutes = express.Router();
-app.use('/api', apiRoutes);
+
+apiRoutes.post('/authenticate', (req, res) => {
+  User.findOne({ name: req.body.name }, (err, user) => {
+    if (err) throw new Error(err);
+    if (!user) {
+      res.json({ success: false, msg: 'User not found' });
+    } else if (user) {
+      if (user.password !== req.body.password) {
+        res.json({ success: false, msg: 'Invalid login' });
+      } else {
+        const token = jwt.sign(
+          user.name,
+          req.app.settings.superSecret
+        );
+        res.json({
+          success: true,
+          message: 'Enjoy your token',
+          token,
+        });
+      }
+    }
+  });
+});
+
+apiRoutes.use((req, res, next) => {
+  const token = req.body.token ||
+                req.query.token ||
+                req.headers['x-access-token'];
+
+  if (token) {
+    jwt.verify(token, req.app.settings.superSecret, (err, decoded) => {
+      if (err) {
+        return res.json({
+          success: false,
+          message: 'Failed to authenticate token.',
+        });
+      }
+      req.decoded = decoded;
+      return next();
+    });
+  } else {
+    return res.status(401).send({
+      success: false,
+      message: 'No token provided',
+    });
+  }
+  return true;
+});
 
 apiRoutes.get('/', (req, res) => {
   res.json({ message: 'Welcome to the API' });
@@ -59,30 +106,7 @@ apiRoutes.get('/users', (req, res) => {
   });
 });
 
-apiRoutes.post('/authenticate', (req, res) => {
-  console.log(req.body);
-  User.findOne({ name: req.body.name }, (err, user) => {
-    if (err) throw new Error(err);
-    if (!user) {
-      res.json({ success: false, msg: 'User not found' });
-    } else if (user) {
-      if (user.password !== req.body.password) {
-        res.json({ success: false, msg: 'Invalid password' });
-      } else {
-        const token = jwt.sign(
-          user,
-          app.get('superSecret'),
-          { expiresIn: '2h' }
-        );
-        res.json({
-          success: true,
-          message: 'Enjoy your token',
-          token,
-        });
-      }
-    }
-  });
-});
+app.use('/api', apiRoutes);
 
 // TODO: route middleware to verify a token
 
