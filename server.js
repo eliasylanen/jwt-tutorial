@@ -17,7 +17,7 @@ mongoose.connect(config.database);
 
 app.set('superSecret', config.secret);
 
-app.use(bodyParser.urlencoded({ extended: false }));
+app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 app.use(morgan('dev'));
 
@@ -48,12 +48,6 @@ app.get('/setup', (req, res) => {
 const apiRoutes = express.Router();
 app.use('/api', apiRoutes);
 
-// TODO: route to authenticate a user (POST http://localhost:8080/api/authenticate)
-apiRoutes.get('/authenticate', (req, res) => {
-  res.json(req.body.name);
-});
-// TODO: route middleware to verify a token
-
 apiRoutes.get('/', (req, res) => {
   res.json({ message: 'Welcome to the API' });
 });
@@ -64,5 +58,32 @@ apiRoutes.get('/users', (req, res) => {
     res.json(users);
   });
 });
+
+apiRoutes.post('/authenticate', (req, res) => {
+  console.log(req.body);
+  User.findOne({ name: req.body.name }, (err, user) => {
+    if (err) throw new Error(err);
+    if (!user) {
+      res.json({ success: false, msg: 'User not found' });
+    } else if (user) {
+      if (user.password !== req.body.password) {
+        res.json({ success: false, msg: 'Invalid password' });
+      } else {
+        const token = jwt.sign(
+          user,
+          app.get('superSecret'),
+          { expiresIn: '2h' }
+        );
+        res.json({
+          success: true,
+          message: 'Enjoy your token',
+          token,
+        });
+      }
+    }
+  });
+});
+
+// TODO: route middleware to verify a token
 
 app.listen(port);
